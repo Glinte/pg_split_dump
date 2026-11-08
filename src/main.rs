@@ -28,6 +28,8 @@ Options:
   --pg-dump-binary=PG_DUMP_PATH
                       use the pg_dump binary in PG_DUMP_PATH
   --no-owner          do not write ALTER ... OWNER TO statements
+  --fk-in-table       write foreign keys in the file of the table that has them, instead of in
+                      FK_CONSTRAINTS; index.sql can then no longer be loaded as is
   --pg-dump-arg=ARG   pass ARG to pg_dump (can be repeated), e.g. --pg-dump-arg=--no-privileges
   --format=d|t
                       output file format: directory or tar archive; the default
@@ -88,6 +90,7 @@ fn main() -> std::io::Result<()> {
 	opts.optflag("v", "version", "print version and exit");
 	opts.optopt("", "pg-dump-binary", "use the pg_dump binary in PG_DUMP_PATH", "PG_DUMP_PATH");
 	opts.optflag("", "no-owner", "do not write ALTER ... OWNER TO statements");
+	opts.optflag("", "fk-in-table", "write foreign keys in the file of the table that has them");
 	opts.optmulti("", "pg-dump-arg", "extra argument to pass to pg_dump", "ARG");
 	opts.optopt("", "format", "output format", "FORMAT");
 
@@ -113,6 +116,7 @@ fn main() -> std::io::Result<()> {
 	let pg_dump_binary = OsString::from(pg_dump_binary);
 
 	let no_owner = matches.opt_present("no-owner");
+	let fk_in_table = matches.opt_present("fk-in-table");
 	let pg_dump_args: Vec<OsString> = matches.opt_strs("pg-dump-arg").into_iter().map(OsString::from).collect();
 
 	let output_format = match matches.opt_str("format") {
@@ -202,7 +206,7 @@ fn main() -> std::io::Result<()> {
 		Ok(aux_data) => aux_data,
 	};
 
-	let dump = match custom_dump_reader::read_dump(pg_dump, &aux_data, no_owner) {
+	let dump = match custom_dump_reader::read_dump(pg_dump, &aux_data, no_owner, fk_in_table) {
 		Err(err) => {
 			panic!("{:?}", err);
 		},

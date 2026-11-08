@@ -95,12 +95,17 @@ pub struct CustomDump {
 
 	// Leave out the ALTER ... OWNER TO statements.
 	no_owner: bool,
+
+	// Put foreign keys in the file of the table that has them instead of in FK_CONSTRAINTS.  The files can then
+	// no longer be loaded in the order index.sql lists them, because a foreign key can refer to a table that
+	// hasn't been created yet.
+	fk_in_table: bool,
 }
 
-pub fn read_dump<R: Read>(input: R, aux_data: &AuxiliaryData, no_owner: bool) -> Result<CustomDump, DumpReadError> {
+pub fn read_dump<R: Read>(input: R, aux_data: &AuxiliaryData, no_owner: bool, fk_in_table: bool) -> Result<CustomDump, DumpReadError> {
 	let reader = CustomDumpReader::new(input)?;
 
-	let mut dump = CustomDump::new(no_owner);
+	let mut dump = CustomDump::new(no_owner, fk_in_table);
 	for item in reader.contents() {
 		let item = item?;
 
@@ -111,13 +116,14 @@ pub fn read_dump<R: Read>(input: R, aux_data: &AuxiliaryData, no_owner: bool) ->
 }
 
 impl CustomDump {
-	fn new(no_owner: bool) -> CustomDump {
+	fn new(no_owner: bool, fk_in_table: bool) -> CustomDump {
 		CustomDump{
 			set_client_encoding: None,
 			set_standard_conforming_strings: None,
 			set_search_path: None,
 
 			no_owner: no_owner,
+			fk_in_table: fk_in_table,
 			split_root: SplitDumpDirectory::new(),
 			views: HashMap::new(),
 		}
@@ -308,9 +314,10 @@ impl CustomDump {
 			},
 			(2606, "FK CONSTRAINT") => {
 				let table_name = item.tag.split_once(" ").unwrap().0;
+				let subdir = if self.fk_in_table { "TABLES" } else { "FK_CONSTRAINTS" };
 				filepath = vec![
 					item.namespace,
-					"FK_CONSTRAINTS".to_string(),
+					subdir.to_string(),
 					format!("{}.sql", &table_name),
 				];
 			},

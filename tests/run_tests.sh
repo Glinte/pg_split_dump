@@ -43,3 +43,28 @@ if grep -rq "OWNER TO" tmp/no_owner; then
     echo "pg_split_dump tests FAILED: --no-owner output still has OWNER TO" >&1
     exit 1
 fi
+
+# --fk-in-table puts a foreign key in the referencing table's file instead of FK_CONSTRAINTS.
+FK_DBNAME="${DBNAME}_fk"
+dropdb --if-exists "$FK_DBNAME"
+createdb "$FK_DBNAME"
+psql -X -v ON_ERROR_STOP=1 -d "$FK_DBNAME" -c "
+    CREATE TABLE parent (id integer PRIMARY KEY);
+    CREATE TABLE child (parent_id integer CONSTRAINT child_parent_fkey REFERENCES parent (id));
+"
+RUST_BACKTRACE=1 ../target/debug/pg_split_dump --pg-dump-binary="$PG_DUMP" "user=$PGUSER host=$PGHOST dbname=$FK_DBNAME" tmp/fk_separate
+RUST_BACKTRACE=1 ../target/debug/pg_split_dump --fk-in-table --pg-dump-binary="$PG_DUMP" "user=$PGUSER host=$PGHOST dbname=$FK_DBNAME" tmp/fk_in_table
+grep -q "child_parent_fkey" tmp/fk_separate/public/FK_CONSTRAINTS/child.sql
+if grep -q "child_parent_fkey" tmp/fk_separate/public/TABLES/child.sql; then
+    set +x
+
+    echo "pg_split_dump tests FAILED: default output has the foreign key in the table file" >&1
+    exit 1
+fi
+if [ -e tmp/fk_in_table/public/FK_CONSTRAINTS ] || ! grep -q "child_parent_fkey" tmp/fk_in_table/public/TABLES/child.sql; then
+    set +x
+
+    echo "pg_split_dump tests FAILED: --fk-in-table did not move the foreign key" >&1
+    exit 1
+fi
+dropdb "$FK_DBNAME"
