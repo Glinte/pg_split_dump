@@ -27,6 +27,8 @@ Usage:
 Options:
   --pg-dump-binary=PG_DUMP_PATH
                       use the pg_dump binary in PG_DUMP_PATH
+  --no-owner          do not write ALTER ... OWNER TO statements
+  --pg-dump-arg=ARG   pass ARG to pg_dump (can be repeated), e.g. --pg-dump-arg=--no-owner
   --format=d|t
                       output file format: directory or tar archive; the default
                       is a directory unless OUTPUT ends in \".tar\"
@@ -85,6 +87,8 @@ fn main() -> std::io::Result<()> {
 	opts.optflag("h", "help", "print this help menu");
 	opts.optflag("v", "version", "print version and exit");
 	opts.optopt("", "pg-dump-binary", "use the pg_dump binary in PG_DUMP_PATH", "PG_DUMP_PATH");
+	opts.optflag("", "no-owner", "do not write ALTER ... OWNER TO statements");
+	opts.optmulti("", "pg-dump-arg", "extra argument to pass to pg_dump", "ARG");
 	opts.optopt("", "format", "output format", "FORMAT");
 
 	let mut matches = match opts.parse(&args[1..]) {
@@ -107,6 +111,9 @@ fn main() -> std::io::Result<()> {
 		None => panic!("pg-dump-binary is currently required"),
 	};
 	let pg_dump_binary = OsString::from(pg_dump_binary);
+
+	let no_owner = matches.opt_present("no-owner");
+	let pg_dump_args: Vec<OsString> = matches.opt_strs("pg-dump-arg").into_iter().map(OsString::from).collect();
 
 	let output_format = match matches.opt_str("format") {
 		Some(fmt) => {
@@ -179,7 +186,7 @@ fn main() -> std::io::Result<()> {
 	};
 	let snapshot_id: String = row.get(0);
 
-	let pg_dump = match pg_dump_subprocess::PgDumpSubprocess::new(&pg_dump_binary, &conninfo, &snapshot_id) {
+	let pg_dump = match pg_dump_subprocess::PgDumpSubprocess::new(&pg_dump_binary, &conninfo, &snapshot_id, &pg_dump_args) {
 		Err(_err) => {
 			//eprintln!("could not start pg_dump subprocess: {}", err);
 			process::exit(1);
@@ -195,7 +202,7 @@ fn main() -> std::io::Result<()> {
 		Ok(aux_data) => aux_data,
 	};
 
-	let dump = match custom_dump_reader::read_dump(pg_dump, &aux_data) {
+	let dump = match custom_dump_reader::read_dump(pg_dump, &aux_data, no_owner) {
 		Err(err) => {
 			panic!("{:?}", err);
 		},

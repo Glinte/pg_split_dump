@@ -32,3 +32,14 @@ if [ -s tmp/diff ]; then
     cat tmp/diff >&1
     exit 1
 fi
+
+# --no-owner leaves out ALTER ... OWNER TO statements, and the default keeps them.
+RUST_BACKTRACE=1 ../target/debug/pg_split_dump --pg-dump-binary="$PG_DUMP" "user=$PGUSER host=$PGHOST dbname=$DBNAME" tmp/with_owner
+RUST_BACKTRACE=1 ../target/debug/pg_split_dump --no-owner --pg-dump-binary="$PG_DUMP" "user=$PGUSER host=$PGHOST dbname=$DBNAME" tmp/no_owner
+grep -rq "OWNER TO" tmp/with_owner
+if grep -rq "OWNER TO" tmp/no_owner; then
+    set +x
+
+    echo "pg_split_dump tests FAILED: --no-owner output still has OWNER TO" >&1
+    exit 1
+fi

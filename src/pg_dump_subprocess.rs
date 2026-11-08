@@ -1,4 +1,4 @@
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::process;
 use std::io::{self, BufRead, BufReader, Read};
 use std::sync::mpsc::{Receiver, channel};
@@ -12,12 +12,13 @@ pub struct PgDumpSubprocess {
 }
 
 impl PgDumpSubprocess {
-	pub fn new(pg_dump_binary_path: &OsStr, conninfo: &str, snapshot_id: &str) -> Result<PgDumpSubprocess, ()> {
+	pub fn new(pg_dump_binary_path: &OsStr, conninfo: &str, snapshot_id: &str, extra_args: &[OsString]) -> Result<PgDumpSubprocess, ()> {
 		let child = process::Command::new(pg_dump_binary_path)
 			.arg("--schema-only")
 			.args(["--format", "custom"])
 			.args([&OsStr::new("--snapshot"), &OsStr::new(snapshot_id)])
 			.args([&OsStr::new("--dbname"), &OsStr::new(conninfo)])
+			.args(extra_args)
 			.stdin(process::Stdio::null())
 			.stdout(process::Stdio::piped())
 			.stderr(process::Stdio::piped())

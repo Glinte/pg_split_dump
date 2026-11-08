@@ -92,12 +92,15 @@ pub struct CustomDump {
 	// List of pg_class entries which are views.  We need to keep track of these
 	// so we know to put the ACLs for views into the right files.
 	views: HashMap<View, ()>,
+
+	// Leave out the ALTER ... OWNER TO statements.
+	no_owner: bool,
 }
 
-pub fn read_dump<R: Read>(input: R, aux_data: &AuxiliaryData) -> Result<CustomDump, DumpReadError> {
+pub fn read_dump<R: Read>(input: R, aux_data: &AuxiliaryData, no_owner: bool) -> Result<CustomDump, DumpReadError> {
 	let reader = CustomDumpReader::new(input)?;
 
-	let mut dump = CustomDump::new();
+	let mut dump = CustomDump::new(no_owner);
 	for item in reader.contents() {
 		let item = item?;
 
@@ -108,12 +111,13 @@ pub fn read_dump<R: Read>(input: R, aux_data: &AuxiliaryData) -> Result<CustomDu
 }
 
 impl CustomDump {
-	fn new() -> CustomDump {
+	fn new(no_owner: bool) -> CustomDump {
 		CustomDump{
 			set_client_encoding: None,
 			set_standard_conforming_strings: None,
 			set_search_path: None,
 
+			no_owner: no_owner,
 			split_root: SplitDumpDirectory::new(),
 			views: HashMap::new(),
 		}
@@ -211,14 +215,16 @@ impl CustomDump {
 					subdir = "FUNCTIONS";
 				}
 
-				contents.push(
-					format!(
-						"ALTER FUNCTION {}.{} OWNER TO {};\n",
-						&item.namespace,
-						&item.tag,
-						&item.owner,
-					),
-				);
+				if !self.no_owner {
+					contents.push(
+						format!(
+							"ALTER FUNCTION {}.{} OWNER TO {};\n",
+							&item.namespace,
+							&item.tag,
+							&item.owner,
+						),
+					);
+				}
 
 				let function_name = item.tag.split_once("(").unwrap().0;
 
@@ -243,14 +249,16 @@ impl CustomDump {
 				];
 			},
 			(1259, "TABLE") => {
-				contents.push(
-					format!(
-						"ALTER TABLE {}.{} OWNER TO {};\n",
-						&item.namespace,
-						&item.tag,
-						&item.owner,
-					),
-				);
+				if !self.no_owner {
+					contents.push(
+						format!(
+							"ALTER TABLE {}.{} OWNER TO {};\n",
+							&item.namespace,
+							&item.tag,
+							&item.owner,
+						),
+					);
+				}
 
 				filepath = vec![
 					item.namespace,
@@ -307,14 +315,16 @@ impl CustomDump {
 				];
 			},
 			(1259, "SEQUENCE") => {
-				contents.push(
-					format!(
-						"ALTER SEQUENCE {}.{} OWNER TO {};\n",
-						&item.namespace,
-						&item.tag,
-						&item.owner,
-					),
-				);
+				if !self.no_owner {
+					contents.push(
+						format!(
+							"ALTER SEQUENCE {}.{} OWNER TO {};\n",
+							&item.namespace,
+							&item.tag,
+							&item.owner,
+						),
+					);
+				}
 
 				filepath = vec![
 					item.namespace,
@@ -341,14 +351,16 @@ impl CustomDump {
 					aux_data.pretty_printed_views.get(&item.oid).unwrap().to_string(),
 				];
 
-				contents.push(
-					format!(
-						"ALTER VIEW {}.{} OWNER TO {};\n",
-						&item.namespace,
-						&item.tag,
-						&item.owner,
-					),
-				);
+				if !self.no_owner {
+					contents.push(
+						format!(
+							"ALTER VIEW {}.{} OWNER TO {};\n",
+							&item.namespace,
+							&item.tag,
+							&item.owner,
+						),
+					);
+				}
 
 				filepath = vec![
 					item.namespace,
