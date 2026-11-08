@@ -28,7 +28,7 @@ Options:
   --pg-dump-binary=PG_DUMP_PATH
                       use the pg_dump binary in PG_DUMP_PATH
   --no-owner          do not write ALTER ... OWNER TO statements
-  --pg-dump-arg=ARG   pass ARG to pg_dump (can be repeated), e.g. --pg-dump-arg=--no-owner
+  --pg-dump-arg=ARG   pass ARG to pg_dump (can be repeated), e.g. --pg-dump-arg=--no-privileges
   --format=d|t
                       output file format: directory or tar archive; the default
                       is a directory unless OUTPUT ends in \".tar\"
