@@ -1,0 +1,35 @@
+name: Release
+# Builds a Linux binary when a tag like v0.2.1-squid.1 is pushed, and publishes it with a SHA-256
+# checksum so downstream CI can download a pinned build instead of compiling it.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-22.04 # Oldest glibc we can get, so the binary runs on newer runners too.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.0
+        with:
+          persist-credentials: false
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Package
+        run: |
+          mkdir dist
+          cp target/release/pg_split_dump dist/pg_split_dump-x86_64-linux
+          cd dist
+          sha256sum pg_split_dump-x86_64-linux > pg_split_dump-x86_64-linux.sha256
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes "Linux x86_64 build of the fork."
